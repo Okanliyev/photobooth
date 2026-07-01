@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Instant Photobooth</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div id="permission-screen" class="screen active">
+            <h1>Welcome to Instant Photobooth</h1>
+            <p>To start taking memories with your friends, we need access to your camera.</p>
+            <button id="btn-grant-camera" class="btn">Grant Camera Permission</button>
+        </div>
+
+        <div id="main-screen" class="screen">
+            <h1>Instant Photobooth</h1>
+            <p>No registration needed. Capture moments instantly.</p>
+            <div class="menu-buttons">
+                <button id="btn-create-menu" class="btn">Create Room</button>
+                <button id="btn-join-menu" class="btn">Join Room</button>
+            </div>
+        </div>
+
+        <div id="waiting-screen" class="screen">
+            <h1>Waiting for your friend...</h1>
+            <p>Share this link with your friend to let them join:</p>
+            <div class="link-container">
+                <input type="text" id="share-link-input" readonly>
+                <button id="btn-copy-link" class="btn-sm">Copy</button>
+            </div>
+            <div class="loader"></div>
+        </div>
+
+        <div id="join-screen" class="screen">
+            <h1>Join a Room</h1>
+            <p>Paste the photobooth room link or ID below:</p>
+            <input type="text" id="room-id-input" placeholder="Enter Room Link or ID...">
+            <button id="btn-submit-join" class="btn">Join Now</button>
+        </div>
+
+        <div id="frame-screen" class="screen">
+            <h1>Choose a Frame Color</h1>
+            <p id="frame-status-text">Select the color theme for your photobooth strip.</p>
+            <div id="host-frame-options" class="frame-options hidden">
+                <button class="btn btn-frame blue" data-color="blue">Blue Frame</button>
+                <button class="btn btn-frame red" data-color="red">Red Frame</button>
+                <button class="btn btn-frame purple" data-color="purple">Purple Frame</button>
+            </div>
+            <div id="guest-waiting-frame" class="hidden">
+                <p>Host is choosing the frame color. Get ready...</p>
+                <div class="loader"></div>
+            </div>
+        </div>
+
+        <div id="booth-screen" class="screen">
+            <div id="countdown-overlay">3</div>
+            <div id="photo-counter">Photos: 0 / 5</div>
+            <div class="video-container" id="video-wrapper">
+                <video id="local-video" autoplay playsinline muted></video>
+                <video id="remote-video" autoplay playsinline></video>
+            </div>
+        </div>
+
+        <div id="result-screen" class="screen">
+            <h1>Your Memories Are Ready!</h1>
+            <p>Your photobooth strip is automatically downloading...</p>
+            <div id="canvas-holder"></div>
+            <button onclick="window.location.reload()" class="btn">Take Another One</button>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
