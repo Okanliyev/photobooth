@@ -13,6 +13,7 @@ const screens = {
 
 // Controls & Video
 const btnGrantCamera = document.getElementById('btn-grant-camera');
+const btnRetryCamera = document.getElementById('btn-retry-camera');
 const btnCreateMenu = document.getElementById('btn-create-menu');
 const btnJoinMenu = document.getElementById('btn-join-menu');
 const btnCopyLink = document.getElementById('btn-copy-link');
@@ -24,6 +25,10 @@ const photoCounter = document.getElementById('photo-counter');
 const videoWrapper = document.getElementById('video-wrapper');
 const localVideo = document.getElementById('local-video');
 const remoteVideo = document.getElementById('remote-video');
+const cameraStatus = document.getElementById('camera-status');
+const btnDownloadResult = document.getElementById('btn-download-result');
+const btnRetake = document.getElementById('btn-retake');
+const resultCaption = document.getElementById('result-caption');
 
 let localStream = null;
 let currentRoom = null;
@@ -39,13 +44,17 @@ const urlParams = new URLSearchParams(window.location.search);
 const urlRoomId = urlParams.get('room');
 
 // Step 1: Camera Permission
-btnGrantCamera.addEventListener('click', async () => {
+async function requestCameraAccess() {
+    cameraStatus.textContent = 'Connecting to your camera...';
+    btnGrantCamera.disabled = true;
+    btnRetryCamera.disabled = true;
+
     try {
         localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         localVideo.srcObject = localStream;
-        
+        cameraStatus.textContent = 'Camera ready. Let’s create your memory.';
+
         if (urlRoomId) {
-            // Direct link user: go straight to joining
             currentRoom = urlRoomId;
             showScreen('join');
             roomIdInput.value = urlRoomId;
@@ -54,9 +63,15 @@ btnGrantCamera.addEventListener('click', async () => {
             showScreen('main');
         }
     } catch (err) {
-        alert('Camera access is required for the photobooth to work!');
+        cameraStatus.textContent = 'Camera access was blocked. Please allow it and try again.';
+    } finally {
+        btnGrantCamera.disabled = false;
+        btnRetryCamera.disabled = false;
     }
-});
+}
+
+btnGrantCamera.addEventListener('click', requestCameraAccess);
+btnRetryCamera.addEventListener('click', requestCameraAccess);
 
 function showScreen(screenName) {
     Object.keys(screens).forEach(key => screens[key].classList.remove('active'));
@@ -252,8 +267,10 @@ function generateFinalStrip() {
     finalCanvas.height = (singlePhotoH * 5) + (spacing * 4) + (margin * 2);
     
     const hexColors = { blue: '#0055ff', red: '#ff3333', purple: '#aa00ff', black: '#111111', white: '#f5f5f5' };
-    ctx.fillStyle = hexColors[selectedColor] || '#333';
+    ctx.fillStyle = '#fdf2f8';
     ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
+    ctx.fillStyle = hexColors[selectedColor] || '#333';
+    ctx.fillRect(margin - 8, margin - 8, singlePhotoW + 16, finalCanvas.height - (margin * 2) + 16);
     
     let loadedCount = 0;
     capturedPhotos.forEach((dataUrl, index) => {
@@ -264,9 +281,12 @@ function generateFinalStrip() {
             const y = margin + (index * (singlePhotoH + spacing));
             ctx.save();
             ctx.fillStyle = '#ffffff';
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
+            ctx.shadowBlur = 12;
+            ctx.shadowOffsetY = 6;
             ctx.fillRect(x, y, singlePhotoW, singlePhotoH);
-            drawImagePreserveAspect(ctx, img, x + 10, y + 10, singlePhotoW - 20, singlePhotoH - 20);
             ctx.restore();
+            drawImagePreserveAspect(ctx, img, x + 10, y + 10, singlePhotoW - 20, singlePhotoH - 20);
             
             loadedCount++;
             if (loadedCount === 5) {
@@ -296,14 +316,8 @@ function drawImagePreserveAspect(ctx, img, x, y, width, height) {
     ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
 }
 
-function finalizeDownload(canvas) {
-    showScreen('result');
+function downloadCanvas(canvas) {
     const dataURL = canvas.toDataURL('image/png');
-    
-    // Render on screen
-    document.getElementById('canvas-holder').appendChild(canvas);
-    
-    // Auto Trigger Download
     const downloadLink = document.createElement('a');
     downloadLink.href = dataURL;
     downloadLink.download = `photobooth-${Date.now()}.png`;
@@ -311,6 +325,27 @@ function finalizeDownload(canvas) {
     downloadLink.click();
     document.body.removeChild(downloadLink);
 }
+
+function finalizeDownload(canvas) {
+    showScreen('result');
+    resultCaption.textContent = 'Your photobooth strip is ready and downloaded for you.';
+    const canvasHolder = document.getElementById('canvas-holder');
+    canvasHolder.innerHTML = '';
+    canvas.classList.add('result-canvas');
+    canvasHolder.appendChild(canvas);
+    downloadCanvas(canvas);
+}
+
+btnDownloadResult.addEventListener('click', () => {
+    const canvas = document.querySelector('#canvas-holder canvas');
+    if (canvas) {
+        downloadCanvas(canvas);
+    }
+});
+
+btnRetake.addEventListener('click', () => {
+    window.location.reload();
+});
 
 socket.on('peer-disconnected', () => {
     alert('Your friend disconnected. Room will reset.');
