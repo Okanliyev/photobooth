@@ -358,26 +358,27 @@ function generateFinalStrip() {
     finalCanvas.height = (singlePhotoH * 5) + (spacing * 4) + (margin * 2);
     
     const hexColors = { blue: '#0055ff', red: '#ff3333', purple: '#aa00ff', black: '#111111', white: '#f5f5f5' };
-    ctx.fillStyle = '#fdf2f8';
+    const frameColor = hexColors[selectedColor] || '#333';
+    ctx.fillStyle = frameColor;
     ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
-    ctx.fillStyle = hexColors[selectedColor] || '#333';
-    ctx.fillRect(margin - 8, margin - 8, singlePhotoW + 16, finalCanvas.height - (margin * 2) + 16);
     
     let loadedCount = 0;
     capturedPhotos.forEach((dataUrl, index) => {
         const img = new Image();
         img.src = dataUrl;
         img.onload = () => {
-            const x = margin;
-            const y = margin + (index * (singlePhotoH + spacing));
+            const x = margin + 8;
+            const y = margin + (index * (singlePhotoH + spacing)) + 8;
+            const cardWidth = singlePhotoW - 16;
+            const cardHeight = singlePhotoH - 16;
             ctx.save();
             ctx.fillStyle = '#ffffff';
-            ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
-            ctx.shadowBlur = 12;
-            ctx.shadowOffsetY = 6;
-            ctx.fillRect(x, y, singlePhotoW, singlePhotoH);
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.15)';
+            ctx.shadowBlur = 10;
+            ctx.shadowOffsetY = 4;
+            ctx.fillRect(x, y, cardWidth, cardHeight);
             ctx.restore();
-            drawImagePreserveAspect(ctx, img, x + 10, y + 10, singlePhotoW - 20, singlePhotoH - 20);
+            drawImagePreserveAspect(ctx, img, x + 10, y + 10, cardWidth - 20, cardHeight - 20);
             
             loadedCount++;
             if (loadedCount === 5) {
