@@ -243,16 +243,15 @@ function generateFinalStrip() {
     const finalCanvas = document.createElement('canvas');
     const ctx = finalCanvas.getContext('2d');
     
-    const singlePhotoW = 640; // 320 * 2
-    const singlePhotoH = 240;
-    const margin = 25;
-    const spacing = 15;
+    const singlePhotoW = 700;
+    const singlePhotoH = 280;
+    const margin = 24;
+    const spacing = 18;
     
     finalCanvas.width = singlePhotoW + (margin * 2);
     finalCanvas.height = (singlePhotoH * 5) + (spacing * 4) + (margin * 2);
     
-    // Set frame color background
-    const hexColors = { blue: '#0055ff', red: '#ff3333', purple: '#aa00ff' };
+    const hexColors = { blue: '#0055ff', red: '#ff3333', purple: '#aa00ff', black: '#111111', white: '#f5f5f5' };
     ctx.fillStyle = hexColors[selectedColor] || '#333';
     ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
     
@@ -263,7 +262,11 @@ function generateFinalStrip() {
         img.onload = () => {
             const x = margin;
             const y = margin + (index * (singlePhotoH + spacing));
-            ctx.drawImage(img, x, y, singlePhotoW, singlePhotoH);
+            ctx.save();
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(x, y, singlePhotoW, singlePhotoH);
+            drawImagePreserveAspect(ctx, img, x + 10, y + 10, singlePhotoW - 20, singlePhotoH - 20);
+            ctx.restore();
             
             loadedCount++;
             if (loadedCount === 5) {
@@ -271,6 +274,26 @@ function generateFinalStrip() {
             }
         };
     });
+}
+
+function drawImagePreserveAspect(ctx, img, x, y, width, height) {
+    const imageAspect = img.width / img.height;
+    const boxAspect = width / height;
+
+    let drawWidth = width;
+    let drawHeight = height;
+
+    if (imageAspect > boxAspect) {
+        drawHeight = height;
+        drawWidth = height * imageAspect;
+    } else {
+        drawWidth = width;
+        drawHeight = width / imageAspect;
+    }
+
+    const offsetX = x + (width - drawWidth) / 2;
+    const offsetY = y + (height - drawHeight) / 2;
+    ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
 }
 
 function finalizeDownload(canvas) {

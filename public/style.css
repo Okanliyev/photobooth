@@ -122,10 +122,18 @@ p {
 .frame-options {
     display: flex;
     gap: 15px;
+    flex-wrap: wrap;
+    justify-content: center;
 }
 .btn-frame.blue { background: #0055ff; }
 .btn-frame.red { background: #ff3333; }
 .btn-frame.purple { background: #aa00ff; }
+.btn-frame.black { background: #111111; }
+.btn-frame.white {
+    background: #f5f5f5;
+    color: #111;
+    border: 1px solid #cfcfcf;
+}
 
 /* Photobooth Video Section */
 #booth-screen {
@@ -179,6 +187,8 @@ video {
 .frame-blue { border-color: #0055ff !important; }
 .frame-red { border-color: #ff3333 !important; }
 .frame-purple { border-color: #aa00ff !important; }
+.frame-black { border-color: #111111 !important; }
+.frame-white { border-color: #f5f5f5 !important; }
 
 .hidden { display: none !important; }
 
