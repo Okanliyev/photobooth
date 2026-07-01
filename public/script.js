@@ -27,10 +27,13 @@ const localVideo = document.getElementById('local-video');
 const remoteVideo = document.getElementById('remote-video');
 const cameraStatus = document.getElementById('camera-status');
 const btnRetake = document.getElementById('btn-retake');
+const btnDownloadResult = document.getElementById('btn-download-result');
 const resultCaption = document.getElementById('result-caption');
 const boothIntro = document.getElementById('booth-intro');
 const boothAnimation = document.getElementById('booth-animation');
 const btnStartSession = document.getElementById('btn-start-session');
+const boothTitle = document.getElementById('booth-title');
+const boothMessage = document.getElementById('booth-message');
 
 let localStream = null;
 let currentRoom = null;
@@ -38,6 +41,7 @@ let isHost = false;
 let peerConnection = null;
 let selectedColor = 'blue';
 let capturedPhotos = [];
+let sessionReadyState = { hostReady: false, guestReady: false };
 
 const STORAGE_KEY = 'photobooth-camera-approved';
 const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
@@ -257,18 +261,41 @@ document.querySelectorAll('.btn-frame').forEach(button => {
     });
 });
 
+function updateBoothIntro(title, message, waiting = false) {
+    boothTitle.textContent = title;
+    boothMessage.textContent = message;
+    boothIntro.classList.remove('hidden');
+    btnStartSession.disabled = waiting;
+    btnStartSession.textContent = waiting ? 'Waiting for partner...' : "I'm Ready";
+}
+
+function resetSessionReadyState() {
+    sessionReadyState = { hostReady: false, guestReady: false };
+}
+
 // Start Photobooth Session
 socket.on('start-booth', (color) => {
     selectedColor = color;
     videoWrapper.className = `video-container frame-${color}`;
-    boothIntro.classList.remove('hidden');
-    photoCounter.innerText = 'Ready to capture 5 photos';
+    resetSessionReadyState();
+    updateBoothIntro('Ready for your photo strip?', 'Press Ready when both of you are set.', false);
     showScreen('booth');
 });
 
-btnStartSession.addEventListener('click', () => {
+socket.on('partner-ready', () => {
+    updateBoothIntro('Partner is ready', 'Your partner is ready. Press Ready when you are too.', false);
+});
+
+socket.on('begin-session', () => {
     boothIntro.classList.add('hidden');
     startPhotoboothSession();
+});
+
+btnStartSession.addEventListener('click', () => {
+    if (!currentRoom) return;
+    const role = isHost ? 'host' : 'guest';
+    socket.emit('session-ready', { room: currentRoom, role });
+    updateBoothIntro('Waiting for your partner', 'Please wait while your partner confirms.', true);
 });
 
 // Capturing 5 Photos Loop
@@ -411,18 +438,30 @@ function downloadCanvas(canvas) {
 
 function finalizeDownload(canvas) {
     showScreen('result');
-    resultCaption.textContent = 'Your photobooth strip is ready and downloaded for you.';
+    resultCaption.textContent = 'Your photobooth strip is ready. Download it whenever you like.';
     const canvasHolder = document.getElementById('canvas-holder');
     canvasHolder.innerHTML = '';
     canvas.classList.add('result-canvas');
     canvasHolder.appendChild(canvas);
-    downloadCanvas(canvas);
 }
+
+btnDownloadResult.addEventListener('click', () => {
+    const canvas = document.querySelector('#canvas-holder canvas');
+    if (canvas) {
+        downloadCanvas(canvas);
+    }
+});
 
 btnRetake.addEventListener('click', () => {
     capturedPhotos = [];
     document.getElementById('canvas-holder').innerHTML = '';
-    showScreen('main');
+    if (currentRoom) {
+        socket.emit('session-ready', { room: currentRoom, role: isHost ? 'host' : 'guest', action: 'retake' });
+        updateBoothIntro('Waiting for your partner', 'Please wait while your partner confirms the next round.', true);
+        showScreen('booth');
+    } else {
+        showScreen('main');
+    }
 });
 
 socket.on('peer-disconnected', () => {

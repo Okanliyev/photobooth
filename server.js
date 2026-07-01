@@ -12,7 +12,7 @@ const rooms = {};
 io.on('connection', (socket) => {
     // Host creates a room
     socket.on('create-room', (roomId) => {
-        rooms[roomId] = { host: socket.id, guest: null, frameColor: null };
+        rooms[roomId] = { host: socket.id, guest: null, frameColor: null, ready: { host: false, guest: false } };
         socket.join(roomId);
         socket.emit('room-created', roomId);
     });
@@ -46,7 +46,26 @@ io.on('connection', (socket) => {
     socket.on('select-frame', ({ room, color }) => {
         if (rooms[room] && rooms[room].host === socket.id) {
             rooms[room].frameColor = color;
+            rooms[room].ready = { host: false, guest: false };
             io.to(room).emit('start-booth', color);
+        }
+    });
+
+    socket.on('session-ready', ({ room, role }) => {
+        if (!rooms[room]) return;
+
+        const roomState = rooms[room];
+        if (role === 'host') {
+            roomState.ready.host = true;
+        } else if (role === 'guest') {
+            roomState.ready.guest = true;
+        }
+
+        if (roomState.ready.host && roomState.ready.guest) {
+            roomState.ready = { host: false, guest: false };
+            io.to(room).emit('begin-session');
+        } else {
+            io.to(room).emit('partner-ready');
         }
     });
 
