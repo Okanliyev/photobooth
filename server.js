@@ -53,18 +53,7 @@ io.on('connection', (socket) => {
 
     socket.on('start-session-request', ({ room, action }) => {
         if (!rooms[room]) return;
-
-        const roomState = rooms[room];
-        if (roomState.host === socket.id) {
-            roomState.ready.host = true;
-        } else if (roomState.guest === socket.id) {
-            roomState.ready.guest = true;
-        }
-
-        if (roomState.ready.host && roomState.ready.guest) {
-            roomState.ready = { host: false, guest: false };
-            io.to(room).emit('begin-session', action || 'start');
-        }
+        io.to(room).emit('begin-session', action || 'start');
     });
 
     socket.on('disconnect', () => {

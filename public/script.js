@@ -267,10 +267,16 @@ socket.on('start-booth', (color) => {
     videoWrapper.className = `video-container frame-${color}`;
     resetSessionReadyState();
     showScreen('booth');
+    setTimeout(() => {
+        startPhotoboothSession();
+    }, 900);
 });
 
 socket.on('begin-session', () => {
-    startPhotoboothSession();
+    showScreen('booth');
+    setTimeout(() => {
+        startPhotoboothSession();
+    }, 900);
 });
 
 // Capturing 5 Photos Loop
@@ -432,7 +438,6 @@ btnRetake.addEventListener('click', () => {
     document.getElementById('canvas-holder').innerHTML = '';
     if (currentRoom) {
         socket.emit('start-session-request', { room: currentRoom, action: 'retake' });
-        showScreen('booth');
     } else {
         showScreen('main');
     }
