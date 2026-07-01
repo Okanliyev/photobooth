@@ -1,0 +1,71 @@
+# Node modules
+
+node_modules/
+
+# Logs
+
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Runtime data
+
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Environment variables
+
+.env
+.env.*
+!.env.example
+
+# Build / output
+
+dist/
+build/
+out/
+
+# Dependency directories
+
+jspm_packages/
+
+# Optional npm cache
+
+.npm
+
+# Optional eslint cache
+
+.eslintcache
+
+# Parcel / Vite cache
+
+.cache/
+.vite/
+
+# Next.js / Nuxt.js
+
+.next/
+.nuxt/
+
+# Coverage reports
+
+coverage/
+
+# OS files
+
+.DS_Store
+Thumbs.db
+
+# IDEs / editors
+
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
