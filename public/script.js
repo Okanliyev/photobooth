@@ -348,44 +348,76 @@ function captureFrame() {
 function generateFinalStrip() {
     const finalCanvas = document.createElement('canvas');
     const ctx = finalCanvas.getContext('2d');
-    
-    const singlePhotoW = 700;
-    const singlePhotoH = 280;
+
     const margin = 24;
     const spacing = 18;
-    
-    finalCanvas.width = singlePhotoW + (margin * 2);
-    finalCanvas.height = (singlePhotoH * 5) + (spacing * 4) + (margin * 2);
-    
-    const hexColors = { blue: '#0055ff', red: '#ff3333', purple: '#aa00ff', black: '#111111', white: '#f5f5f5' };
-    const frameColor = hexColors[selectedColor] || '#333';
-    ctx.fillStyle = frameColor;
-    ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
-    
-    let loadedCount = 0;
-    capturedPhotos.forEach((dataUrl, index) => {
+
+    // Load all images first to get real dimensions (use first image as base width)
+    const imgs = capturedPhotos.map(url => {
         const img = new Image();
-        img.src = dataUrl;
-        img.onload = () => {
-            const x = margin + 8;
-            const y = margin + (index * (singlePhotoH + spacing)) + 8;
-            const cardWidth = singlePhotoW - 16;
-            const cardHeight = singlePhotoH - 16;
+        img.src = url;
+        return img;
+    });
+
+    Promise.all(imgs.map(img => new Promise(res => { img.onload = res; }))).then(() => {
+        const baseW = imgs[0].width || 640;
+        const baseH = imgs[0].height || 240;
+        const count = imgs.length;
+
+        const singlePhotoW = baseW;
+        const singlePhotoH = baseH;
+
+        finalCanvas.width = singlePhotoW + (margin * 2);
+        finalCanvas.height = (singlePhotoH * count) + (spacing * (count - 1)) + (margin * 2);
+
+        const hexColors = { blue: '#0055ff', red: '#ff3333', purple: '#aa00ff', black: '#111111', white: '#f5f5f5' };
+        const frameColor = hexColors[selectedColor] || '#333';
+
+        // Fill the frame color as the dominant background
+        ctx.fillStyle = frameColor;
+        ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
+
+        let loaded = 0;
+        imgs.forEach((img, index) => {
+            const x = margin;
+            const y = margin + (index * (singlePhotoH + spacing));
+            const cardW = singlePhotoW;
+            const cardH = singlePhotoH;
+
+            // white card inset to create border effect
+            const inset = 10;
             ctx.save();
             ctx.fillStyle = '#ffffff';
-            ctx.shadowColor = 'rgba(0, 0, 0, 0.15)';
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.12)';
             ctx.shadowBlur = 10;
             ctx.shadowOffsetY = 4;
-            ctx.fillRect(x, y, cardWidth, cardHeight);
+            ctx.fillRect(x + inset, y + inset, cardW - (inset * 2), cardH - (inset * 2));
             ctx.restore();
-            drawImagePreserveAspect(ctx, img, x + 10, y + 10, cardWidth - 20, cardHeight - 20);
-            
-            loadedCount++;
-            if (loadedCount === 5) {
+
+            // draw image using 'cover' behavior and clip to the white card area
+            drawImageCover(ctx, img, x + inset, y + inset, cardW - (inset * 2), cardH - (inset * 2));
+
+            loaded++;
+            if (loaded === count) {
                 finalizeDownload(finalCanvas);
             }
-        };
+        });
     });
+}
+
+function drawImageCover(ctx, img, x, y, width, height) {
+    const scale = Math.max(width / img.width, height / img.height);
+    const dw = img.width * scale;
+    const dh = img.height * scale;
+    const dx = x + (width - dw) / 2;
+    const dy = y + (height - dh) / 2;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x, y, width, height);
+    ctx.clip();
+    ctx.drawImage(img, dx, dy, dw, dh);
+    ctx.restore();
 }
 
 function drawImagePreserveAspect(ctx, img, x, y, width, height) {
