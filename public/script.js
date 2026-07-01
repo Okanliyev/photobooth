@@ -26,9 +26,11 @@ const videoWrapper = document.getElementById('video-wrapper');
 const localVideo = document.getElementById('local-video');
 const remoteVideo = document.getElementById('remote-video');
 const cameraStatus = document.getElementById('camera-status');
-const btnDownloadResult = document.getElementById('btn-download-result');
 const btnRetake = document.getElementById('btn-retake');
 const resultCaption = document.getElementById('result-caption');
+const boothIntro = document.getElementById('booth-intro');
+const boothAnimation = document.getElementById('booth-animation');
+const btnStartSession = document.getElementById('btn-start-session');
 
 let localStream = null;
 let currentRoom = null;
@@ -37,14 +39,26 @@ let peerConnection = null;
 let selectedColor = 'blue';
 let capturedPhotos = [];
 
+const STORAGE_KEY = 'photobooth-camera-approved';
 const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
 // Check URL query for auto-join link format
 const urlParams = new URLSearchParams(window.location.search);
 const urlRoomId = urlParams.get('room');
 
-// Step 1: Camera Permission
-async function requestCameraAccess() {
+function hasCameraApproval() {
+    return localStorage.getItem(STORAGE_KEY) === 'true';
+}
+
+function markCameraApproved() {
+    localStorage.setItem(STORAGE_KEY, 'true');
+}
+
+function clearCameraApproval() {
+    localStorage.removeItem(STORAGE_KEY);
+}
+
+async function requestCameraAccess(onSuccess) {
     cameraStatus.textContent = 'Connecting to your camera...';
     btnGrantCamera.disabled = true;
     btnRetryCamera.disabled = true;
@@ -52,15 +66,11 @@ async function requestCameraAccess() {
     try {
         localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         localVideo.srcObject = localStream;
+        markCameraApproved();
         cameraStatus.textContent = 'Camera ready. Let’s create your memory.';
 
-        if (urlRoomId) {
-            currentRoom = urlRoomId;
-            showScreen('join');
-            roomIdInput.value = urlRoomId;
-            joinRoom(urlRoomId);
-        } else {
-            showScreen('main');
+        if (typeof onSuccess === 'function') {
+            onSuccess();
         }
     } catch (err) {
         cameraStatus.textContent = 'Camera access was blocked. Please allow it and try again.';
@@ -70,8 +80,55 @@ async function requestCameraAccess() {
     }
 }
 
-btnGrantCamera.addEventListener('click', requestCameraAccess);
-btnRetryCamera.addEventListener('click', requestCameraAccess);
+function continueToMainScreen() {
+    if (hasCameraApproval() && !localStream) {
+        requestCameraAccess(() => {
+            if (urlRoomId) {
+                currentRoom = urlRoomId;
+                showScreen('join');
+                roomIdInput.value = urlRoomId;
+                joinRoom(urlRoomId);
+            } else {
+                showScreen('main');
+            }
+        });
+        return;
+    }
+
+    if (!localStream) {
+        showScreen('permission');
+        return;
+    }
+
+    if (urlRoomId) {
+        currentRoom = urlRoomId;
+        showScreen('join');
+        roomIdInput.value = urlRoomId;
+        joinRoom(urlRoomId);
+        return;
+    }
+
+    showScreen('main');
+}
+
+btnGrantCamera.addEventListener('click', () => {
+    requestCameraAccess(() => {
+        if (urlRoomId) {
+            currentRoom = urlRoomId;
+            showScreen('join');
+            roomIdInput.value = urlRoomId;
+            joinRoom(urlRoomId);
+        } else {
+            showScreen('main');
+        }
+    });
+});
+
+btnRetryCamera.addEventListener('click', () => {
+    requestCameraAccess(() => {
+        showScreen('main');
+    });
+});
 
 function showScreen(screenName) {
     Object.keys(screens).forEach(key => screens[key].classList.remove('active'));
@@ -79,13 +136,30 @@ function showScreen(screenName) {
 }
 
 // Main Menu Actions
-btnCreateMenu.addEventListener('click', () => {
+btnCreateMenu.addEventListener('click', async () => {
+    if (!localStream) {
+        await requestCameraAccess(() => {
+            isHost = true;
+            const genRoomId = Math.random().toString(36).substring(2, 9);
+            socket.emit('create-room', genRoomId);
+        });
+        return;
+    }
+
     isHost = true;
     const genRoomId = Math.random().toString(36).substring(2, 9);
     socket.emit('create-room', genRoomId);
 });
 
-btnJoinMenu.addEventListener('click', () => {
+btnJoinMenu.addEventListener('click', async () => {
+    if (!localStream) {
+        await requestCameraAccess(() => {
+            isHost = false;
+            showScreen('join');
+        });
+        return;
+    }
+
     isHost = false;
     showScreen('join');
 });
@@ -187,7 +261,13 @@ document.querySelectorAll('.btn-frame').forEach(button => {
 socket.on('start-booth', (color) => {
     selectedColor = color;
     videoWrapper.className = `video-container frame-${color}`;
+    boothIntro.classList.remove('hidden');
+    photoCounter.innerText = 'Ready to capture 5 photos';
     showScreen('booth');
+});
+
+btnStartSession.addEventListener('click', () => {
+    boothIntro.classList.add('hidden');
     startPhotoboothSession();
 });
 
@@ -195,7 +275,7 @@ socket.on('start-booth', (color) => {
 async function startPhotoboothSession() {
     capturedPhotos = [];
     for (let i = 1; i <= 5; i++) {
-        photoCounter.innerText = `Photos: ${i - 1} / 5`;
+        photoCounter.innerText = `Photos: ${i} / 5`;
         await runCountdown(3);
         captureFrame();
     }
@@ -225,6 +305,9 @@ function runCountdown(seconds) {
 }
 
 function captureFrame() {
+    boothAnimation.classList.remove('hidden');
+    setTimeout(() => boothAnimation.classList.add('hidden'), 600);
+
     // Hidden internal canvas to snapshot current view
     const snapCanvas = document.createElement('canvas');
     const ctx = snapCanvas.getContext('2d');
@@ -336,18 +419,15 @@ function finalizeDownload(canvas) {
     downloadCanvas(canvas);
 }
 
-btnDownloadResult.addEventListener('click', () => {
-    const canvas = document.querySelector('#canvas-holder canvas');
-    if (canvas) {
-        downloadCanvas(canvas);
-    }
-});
-
 btnRetake.addEventListener('click', () => {
-    window.location.reload();
+    capturedPhotos = [];
+    document.getElementById('canvas-holder').innerHTML = '';
+    showScreen('main');
 });
 
 socket.on('peer-disconnected', () => {
     alert('Your friend disconnected. Room will reset.');
     window.location.reload();
 });
+
+continueToMainScreen();
