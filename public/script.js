@@ -31,7 +31,6 @@ const btnDownloadResult = document.getElementById('btn-download-result');
 const resultCaption = document.getElementById('result-caption');
 const boothIntro = document.getElementById('booth-intro');
 const boothAnimation = document.getElementById('booth-animation');
-const btnStartSession = document.getElementById('btn-start-session');
 const boothTitle = document.getElementById('booth-title');
 const boothMessage = document.getElementById('booth-message');
 
@@ -261,12 +260,10 @@ document.querySelectorAll('.btn-frame').forEach(button => {
     });
 });
 
-function updateBoothIntro(title, message, waiting = false) {
+function updateBoothIntro(title, message) {
     boothTitle.textContent = title;
     boothMessage.textContent = message;
     boothIntro.classList.remove('hidden');
-    btnStartSession.disabled = waiting;
-    btnStartSession.textContent = waiting ? 'Waiting for partner...' : "I'm Ready";
 }
 
 function resetSessionReadyState() {
@@ -278,24 +275,13 @@ socket.on('start-booth', (color) => {
     selectedColor = color;
     videoWrapper.className = `video-container frame-${color}`;
     resetSessionReadyState();
-    updateBoothIntro('Ready for your photo strip?', 'Press Ready when both of you are set.', false);
+    updateBoothIntro('Ready for your photo strip?', 'The session will begin once both of you are ready.');
     showScreen('booth');
-});
-
-socket.on('partner-ready', () => {
-    updateBoothIntro('Partner is ready', 'Your partner is ready. Press Ready when you are too.', false);
 });
 
 socket.on('begin-session', () => {
     boothIntro.classList.add('hidden');
     startPhotoboothSession();
-});
-
-btnStartSession.addEventListener('click', () => {
-    if (!currentRoom) return;
-    const role = isHost ? 'host' : 'guest';
-    socket.emit('session-ready', { room: currentRoom, role });
-    updateBoothIntro('Waiting for your partner', 'Please wait while your partner confirms.', true);
 });
 
 // Capturing 5 Photos Loop
@@ -456,8 +442,8 @@ btnRetake.addEventListener('click', () => {
     capturedPhotos = [];
     document.getElementById('canvas-holder').innerHTML = '';
     if (currentRoom) {
-        socket.emit('session-ready', { room: currentRoom, role: isHost ? 'host' : 'guest', action: 'retake' });
-        updateBoothIntro('Waiting for your partner', 'Please wait while your partner confirms the next round.', true);
+        socket.emit('start-session-request', { room: currentRoom, action: 'retake' });
+        updateBoothIntro('Waiting for your partner', 'Please wait while your partner joins the next round.');
         showScreen('booth');
     } else {
         showScreen('main');
