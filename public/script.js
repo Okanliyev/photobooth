@@ -320,22 +320,23 @@ function captureFrame() {
     const snapCanvas = document.createElement('canvas');
     const ctx = snapCanvas.getContext('2d');
     
-    // Size of individual video streams inside the strip
-    const vWidth = 320;
-    const vHeight = 240;
-    
-    snapCanvas.width = vWidth * 2;
-    snapCanvas.height = vHeight;
-    
-    // Draw Local Video (Mirrored for natural look)
+    // Capture at fixed 3:2 aspect ratio per participant (width:height = 3:2)
+    // Use reasonably high resolution for good output while keeping memory in check
+    const perPhotoW = 900; // width for each participant capture
+    const perPhotoH = 600; // height for each participant capture (3:2)
+
+    snapCanvas.width = perPhotoW * 2; // two participants side-by-side
+    snapCanvas.height = perPhotoH;
+
+    // Draw Local Video (Mirrored for natural look) using cover behavior
     ctx.save();
-    ctx.translate(vWidth, 0);
+    ctx.translate(perPhotoW, 0);
     ctx.scale(-1, 1);
-    ctx.drawImage(localVideo, 0, 0, vWidth, vHeight);
+    drawImageCover(ctx, localVideo, 0, 0, perPhotoW, perPhotoH);
     ctx.restore();
-    
-    // Draw Remote Video
-    ctx.drawImage(remoteVideo, vWidth, 0, vWidth, vHeight);
+
+    // Draw Remote Video using cover behavior
+    drawImageCover(ctx, remoteVideo, perPhotoW, 0, perPhotoW, perPhotoH);
     
     capturedPhotos.push(snapCanvas.toDataURL('image/png'));
     

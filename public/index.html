@@ -34,7 +34,7 @@
             <h1>Waiting for your friend...</h1>
             <p>Share this link with your friend to let them join:</p>
             <div class="link-container">
-                <input type="text" id="share-link-input" readonly>
+                <input type="text" id="share-link-input" readonly aria-label="Share link">
                 <button id="btn-copy-link" class="btn-sm">Copy</button>
             </div>
             <div class="loader"></div>
@@ -43,7 +43,7 @@
         <div id="join-screen" class="screen">
             <h1>Join a Room</h1>
             <p>Paste the photobooth room link or ID below:</p>
-            <input type="text" id="room-id-input" placeholder="Enter Room Link or ID...">
+            <input type="text" id="room-id-input" placeholder="Enter Room Link or ID..." aria-label="Room link or ID">
             <button id="btn-submit-join" class="btn">Join Now</button>
         </div>
 
