@@ -8,11 +8,25 @@ const io = require('socket.io')(http, {
 app.use(express.static('public'));
 
 const rooms = {};
+const VALID_COLORS = ['blue', 'red', 'purple', 'black', 'white'];
+const ROOM_TTL_MS = 30 * 60 * 1000; // rooms with no guest for 30 min are reaped
+const REAP_INTERVAL_MS = 5 * 60 * 1000;
 
 io.on('connection', (socket) => {
     // Host creates a room
     socket.on('create-room', (roomId) => {
-        rooms[roomId] = { host: socket.id, guest: null, frameColor: null, ready: { host: false, guest: false } };
+        // Guard against malformed/empty room ids and (extremely unlikely) collisions
+        if (!roomId || typeof roomId !== 'string' || rooms[roomId]) {
+            socket.emit('room-error', 'Could not create room, please try again.');
+            return;
+        }
+        rooms[roomId] = {
+            host: socket.id,
+            guest: null,
+            frameColor: null,
+            ready: { host: false, guest: false },
+            createdAt: Date.now()
+        };
         socket.join(roomId);
         socket.emit('room-created', roomId);
     });
@@ -44,7 +58,7 @@ io.on('connection', (socket) => {
 
     // Host selects a frame color
     socket.on('select-frame', ({ room, color }) => {
-        if (rooms[room] && rooms[room].host === socket.id) {
+        if (rooms[room] && rooms[room].host === socket.id && VALID_COLORS.includes(color)) {
             rooms[room].frameColor = color;
             rooms[room].ready = { host: false, guest: false };
             io.to(room).emit('start-booth', color);
@@ -65,6 +79,18 @@ io.on('connection', (socket) => {
         }
     });
 });
+
+// Periodically clear out rooms that were created but never got a guest
+// (e.g. the host closed the tab before the socket "disconnect" event fired).
+setInterval(() => {
+    const now = Date.now();
+    for (const roomId in rooms) {
+        const room = rooms[roomId];
+        if (!room.guest && now - room.createdAt > ROOM_TTL_MS) {
+            delete rooms[roomId];
+        }
+    }
+}, REAP_INTERVAL_MS);
 
 const PORT = process.env.PORT || 3000;
 http.listen(PORT, () => {

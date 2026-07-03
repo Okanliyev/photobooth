@@ -40,9 +40,14 @@ let selectedColor = 'blue';
 let selectedPhotoCount = 5;
 let capturedPhotos = [];
 let sessionReadyState = { hostReady: false, guestReady: false };
+let pendingIceCandidates = []; // candidates that arrive before remoteDescription is set
 
 const STORAGE_KEY = 'photobooth-camera-approved';
 const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
+// Shared capture dimensions (also used as a safe fallback if an image fails to decode)
+const PER_PHOTO_W = 900;
+const PER_PHOTO_H = 600;
 
 // Check URL query for auto-join link format
 const urlParams = new URLSearchParams(window.location.search);
@@ -174,10 +179,21 @@ socket.on('room-created', (roomId) => {
     showScreen('waiting');
 });
 
-btnCopyLink.addEventListener('click', () => {
-    shareLinkInput.select();
-    document.execCommand('copy');
-    alert('Link copied to clipboard!');
+btnCopyLink.addEventListener('click', async () => {
+    try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(shareLinkInput.value);
+        } else {
+            // Fallback for browsers without the async Clipboard API
+            shareLinkInput.select();
+            document.execCommand('copy');
+        }
+        alert('Link copied to clipboard!');
+    } catch (err) {
+        // Final fallback: at least select the text so the user can copy manually
+        shareLinkInput.select();
+        alert('Could not copy automatically. The link is selected — press Ctrl/Cmd+C to copy.');
+    }
 });
 
 // Guest submits join
@@ -216,14 +232,21 @@ socket.on('guest-joined', () => {
 
 // WebRTC Signaling Logic
 function setupWebRTC() {
+    // Guard against leaking a connection if setupWebRTC() is ever called twice
+    // (e.g. a stray reconnect) before the old one is torn down.
+    if (peerConnection) {
+        peerConnection.close();
+    }
+    pendingIceCandidates = [];
+
     peerConnection = new RTCPeerConnection(rtcConfig);
-    
+
     localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-    
+
     peerConnection.ontrack = (event) => {
         remoteVideo.srcObject = event.streams[0];
     };
-    
+
     peerConnection.onicecandidate = (event) => {
         if (event.candidate) {
             socket.emit('signal', { room: currentRoom, signal: { candidate: event.candidate } });
@@ -238,15 +261,37 @@ async function createOffer() {
 }
 
 socket.on('signal', async (data) => {
-    if (data.signal.sdp) {
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(data.signal.sdp));
-        if (peerConnection.remoteDescription.type === 'offer') {
-            const answer = await peerConnection.createAnswer();
-            await peerConnection.setLocalDescription(answer);
-            socket.emit('signal', { room: currentRoom, signal: { sdp: peerConnection.localDescription } });
+    // Signals can arrive before setupWebRTC() has run (e.g. out-of-order delivery);
+    // there's nothing to apply them to yet, so just ignore them.
+    if (!peerConnection) return;
+
+    try {
+        if (data.signal.sdp) {
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.signal.sdp));
+
+            // Now that the remote description is set, flush any ICE candidates
+            // that arrived early and couldn't be applied yet.
+            for (const candidate of pendingIceCandidates) {
+                await peerConnection.addIceCandidate(candidate);
+            }
+            pendingIceCandidates = [];
+
+            if (peerConnection.remoteDescription.type === 'offer') {
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+                socket.emit('signal', { room: currentRoom, signal: { sdp: peerConnection.localDescription } });
+            }
+        } else if (data.signal.candidate) {
+            const candidate = new RTCIceCandidate(data.signal.candidate);
+            if (peerConnection.remoteDescription) {
+                await peerConnection.addIceCandidate(candidate);
+            } else {
+                // Remote description isn't set yet - queue it for later.
+                pendingIceCandidates.push(candidate);
+            }
         }
-    } else if (data.signal.candidate) {
-        await peerConnection.addIceCandidate(new RTCIceCandidate(data.signal.candidate));
+    } catch (err) {
+        console.error('WebRTC signaling error:', err);
     }
 });
 
@@ -332,21 +377,18 @@ function captureFrame() {
     
     // Capture at fixed 3:2 aspect ratio per participant (width:height = 3:2)
     // Use reasonably high resolution for good output while keeping memory in check
-    const perPhotoW = 900; // width for each participant capture
-    const perPhotoH = 600; // height for each participant capture (3:2)
-
-    snapCanvas.width = perPhotoW * 2; // two participants side-by-side
-    snapCanvas.height = perPhotoH;
+    snapCanvas.width = PER_PHOTO_W * 2; // two participants side-by-side
+    snapCanvas.height = PER_PHOTO_H;
 
     // Draw Local Video (Mirrored for natural look) using cover behavior
     ctx.save();
-    ctx.translate(perPhotoW, 0);
+    ctx.translate(PER_PHOTO_W, 0);
     ctx.scale(-1, 1);
-    drawImageCover(ctx, localVideo, 0, 0, perPhotoW, perPhotoH);
+    drawImageCover(ctx, localVideo, 0, 0, PER_PHOTO_W, PER_PHOTO_H);
     ctx.restore();
 
     // Draw Remote Video using cover behavior
-    drawImageCover(ctx, remoteVideo, perPhotoW, 0, perPhotoW, perPhotoH);
+    drawImageCover(ctx, remoteVideo, PER_PHOTO_W, 0, PER_PHOTO_W, PER_PHOTO_H);
     
     capturedPhotos.push(snapCanvas.toDataURL('image/png'));
     
@@ -370,17 +412,29 @@ function generateFinalStrip() {
         return img;
     });
 
-    Promise.all(imgs.map(img => new Promise(res => { 
-        if (img.complete) {
+    Promise.all(imgs.map(img => new Promise(res => {
+        if (img.complete && img.naturalWidth > 0) {
             res();
         } else {
             img.onload = res;
             img.onerror = res; // Also resolve on error to prevent hanging
         }
     }))).then(() => {
-        const baseW = imgs[0]?.width || 640;
-        const baseH = imgs[0]?.height || 240;
+        // Prefer the real decoded size of the first successfully-loaded image,
+        // and fall back to the known capture size (matches what captureFrame()
+        // actually produces) rather than an arbitrary, mismatched hardcoded size.
+        const firstGood = imgs.find(img => img.naturalWidth > 0);
+        const baseW = firstGood ? firstGood.naturalWidth : PER_PHOTO_W * 2;
+        const baseH = firstGood ? firstGood.naturalHeight : PER_PHOTO_H;
         const count = imgs.length;
+
+        if (count === 0) {
+            // Nothing to render (all captures failed) — bail out gracefully instead
+            // of producing a broken/empty canvas.
+            resultCaption.textContent = 'Something went wrong capturing your photos. Please try again.';
+            showScreen('result');
+            return;
+        }
 
         const singlePhotoW = baseW;
         const singlePhotoH = baseH;
@@ -421,10 +475,23 @@ function generateFinalStrip() {
     });
 }
 
-function drawImageCover(ctx, img, x, y, width, height) {
-    const scale = Math.max(width / img.width, height / img.height);
-    const dw = img.width * scale;
-    const dh = img.height * scale;
+function drawImageCover(ctx, source, x, y, width, height) {
+    // <video> elements expose their real pixel dimensions via videoWidth/videoHeight —
+    // .width/.height on a video only reflect the HTML width/height *attributes*
+    // (0 here, since none are set), which would otherwise produce NaN/Infinity math.
+    const isVideo = typeof HTMLVideoElement !== 'undefined' && source instanceof HTMLVideoElement;
+    const sourceW = isVideo ? source.videoWidth : source.width;
+    const sourceH = isVideo ? source.videoHeight : source.height;
+
+    if (!sourceW || !sourceH) {
+        // Nothing to draw yet (e.g. remote video hasn't received a frame) — skip
+        // rather than let NaN dimensions throw inside drawImage().
+        return;
+    }
+
+    const scale = Math.max(width / sourceW, height / sourceH);
+    const dw = sourceW * scale;
+    const dh = sourceH * scale;
     const dx = x + (width - dw) / 2;
     const dy = y + (height - dh) / 2;
 
@@ -432,7 +499,7 @@ function drawImageCover(ctx, img, x, y, width, height) {
     ctx.beginPath();
     ctx.rect(x, y, width, height);
     ctx.clip();
-    ctx.drawImage(img, dx, dy, dw, dh);
+    ctx.drawImage(source, dx, dy, dw, dh);
     ctx.restore();
 }
 
