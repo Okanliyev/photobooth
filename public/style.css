@@ -206,6 +206,11 @@ p {
     min-width: 130px;
 }
 
+.btn-count {
+    min-width: 120px;
+    font-size: 1.1rem;
+}
+
 .btn-frame.blue { background: linear-gradient(135deg, #2563eb, #0ea5e9); box-shadow: 0 10px 24px rgba(37, 99, 235, 0.22); }
 .btn-frame.red { background: linear-gradient(135deg, #ef4444, #f97316); box-shadow: 0 10px 24px rgba(239, 68, 68, 0.22); }
 .btn-frame.purple { background: linear-gradient(135deg, #8b5cf6, #a855f7); box-shadow: 0 10px 24px rgba(139, 92, 246, 0.22); }
@@ -336,8 +341,14 @@ video {
 #canvas-holder {
     display: flex;
     justify-content: center;
+    align-items: center;
     width: 100%;
     margin: 12px 0 8px;
+    min-height: 200px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px dashed rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 12px;
 }
 
 canvas {

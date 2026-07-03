@@ -47,6 +47,17 @@
             <button id="btn-submit-join" class="btn">Join Now</button>
         </div>
 
+        <div id="photo-count-screen" class="screen">
+            <h1>How Many Photos?</h1>
+            <p>Select the number of photos to capture:</p>
+            <div class="menu-buttons">
+                <button class="btn btn-count" data-count="2">2 Photos</button>
+                <button class="btn btn-count" data-count="3">3 Photos</button>
+                <button class="btn btn-count" data-count="4">4 Photos</button>
+                <button class="btn btn-count" data-count="5">5 Photos</button>
+            </div>
+        </div>
+
         <div id="frame-screen" class="screen">
             <h1>Choose a Frame Color</h1>
             <p id="frame-status-text">Select the color theme for your photobooth strip.</p>
@@ -71,8 +82,8 @@
             </div>
             <div id="photo-counter">Ready to capture 5 photos</div>
             <div class="video-container" id="video-wrapper">
-                <video id="local-video" autoplay playsinline muted></video>
-                <video id="remote-video" autoplay playsinline></video>
+                <video id="local-video" autoplay muted></video>
+                <video id="remote-video" autoplay></video>
             </div>
         </div>
 

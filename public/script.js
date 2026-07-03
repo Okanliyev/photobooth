@@ -6,6 +6,7 @@ const screens = {
     main: document.getElementById('main-screen'),
     waiting: document.getElementById('waiting-screen'),
     join: document.getElementById('join-screen'),
+    photoCount: document.getElementById('photo-count-screen'),
     frame: document.getElementById('frame-screen'),
     booth: document.getElementById('booth-screen'),
     result: document.getElementById('result-screen'),
@@ -36,6 +37,7 @@ let currentRoom = null;
 let isHost = false;
 let peerConnection = null;
 let selectedColor = 'blue';
+let selectedPhotoCount = 5;
 let capturedPhotos = [];
 let sessionReadyState = { hostReady: false, guestReady: false };
 
@@ -203,14 +205,13 @@ socket.on('join-success', () => {
 
 socket.on('room-error', (msg) => { alert(msg); showScreen('main'); });
 
-// When guest joins, Host proceeds to Frame selection
+// When guest joins, Host proceeds to Photo Count selection
 socket.on('guest-joined', () => {
     setupWebRTC();
     // Host opens WebRTC Connection by creating Offer
     createOffer();
     
-    document.getElementById('host-frame-options').classList.remove('hidden');
-    showScreen('frame');
+    showScreen('photoCount');
 });
 
 // WebRTC Signaling Logic
@@ -257,6 +258,15 @@ document.querySelectorAll('.btn-frame').forEach(button => {
     });
 });
 
+// Photo Count Selection (Host Side)
+document.querySelectorAll('.btn-count').forEach(button => {
+    button.addEventListener('click', (e) => {
+        selectedPhotoCount = parseInt(e.target.getAttribute('data-count'), 10);
+        document.getElementById('host-frame-options').classList.remove('hidden');
+        showScreen('frame');
+    });
+});
+
 function resetSessionReadyState() {
     sessionReadyState = { hostReady: false, guestReady: false };
 }
@@ -279,15 +289,15 @@ socket.on('begin-session', () => {
     }, 900);
 });
 
-// Capturing 5 Photos Loop
+// Capturing Photos Loop (flexible count)
 async function startPhotoboothSession() {
     capturedPhotos = [];
-    for (let i = 1; i <= 5; i++) {
-        photoCounter.innerText = `Photos: ${i} / 5`;
+    for (let i = 1; i <= selectedPhotoCount; i++) {
+        photoCounter.innerText = `Photos: ${i} / ${selectedPhotoCount}`;
         await runCountdown(3);
         captureFrame();
     }
-    photoCounter.innerText = `Photos: 5 / 5`;
+    photoCounter.innerText = `Photos: ${selectedPhotoCount} / ${selectedPhotoCount}`;
     setTimeout(() => {
         generateFinalStrip();
     }, 1000);
@@ -360,9 +370,16 @@ function generateFinalStrip() {
         return img;
     });
 
-    Promise.all(imgs.map(img => new Promise(res => { img.onload = res; }))).then(() => {
-        const baseW = imgs[0].width || 640;
-        const baseH = imgs[0].height || 240;
+    Promise.all(imgs.map(img => new Promise(res => { 
+        if (img.complete) {
+            res();
+        } else {
+            img.onload = res;
+            img.onerror = res; // Also resolve on error to prevent hanging
+        }
+    }))).then(() => {
+        const baseW = imgs[0]?.width || 640;
+        const baseH = imgs[0]?.height || 240;
         const count = imgs.length;
 
         const singlePhotoW = baseW;
@@ -378,7 +395,7 @@ function generateFinalStrip() {
         ctx.fillStyle = frameColor;
         ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
 
-        let loaded = 0;
+        // Draw all images and their white card backgrounds
         imgs.forEach((img, index) => {
             const x = margin;
             const y = margin + (index * (singlePhotoH + spacing));
@@ -397,12 +414,10 @@ function generateFinalStrip() {
 
             // draw image using 'cover' behavior and clip to the white card area
             drawImageCover(ctx, img, x + inset, y + inset, cardW - (inset * 2), cardH - (inset * 2));
-
-            loaded++;
-            if (loaded === count) {
-                finalizeDownload(finalCanvas);
-            }
         });
+
+        // After all drawing is done, finalize the download
+        finalizeDownload(finalCanvas);
     });
 }
 
@@ -456,7 +471,14 @@ function finalizeDownload(canvas) {
     resultCaption.textContent = 'Your photobooth strip is ready. Download it whenever you like.';
     const canvasHolder = document.getElementById('canvas-holder');
     canvasHolder.innerHTML = '';
+    
+    // Ensure canvas is properly styled and displayed
     canvas.classList.add('result-canvas');
+    canvas.style.display = 'block';
+    canvas.style.margin = '0 auto';
+    canvas.style.maxWidth = '100%';
+    canvas.style.height = 'auto';
+    
     canvasHolder.appendChild(canvas);
 }
 
