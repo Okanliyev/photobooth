@@ -472,20 +472,31 @@ function finalizeDownload(canvas) {
     const canvasHolder = document.getElementById('canvas-holder');
     canvasHolder.innerHTML = '';
     
-    // Ensure canvas is properly styled and displayed
-    canvas.classList.add('result-canvas');
-    canvas.style.display = 'block';
-    canvas.style.margin = '0 auto';
-    canvas.style.maxWidth = '100%';
-    canvas.style.height = 'auto';
+    // Convert canvas to image for better display
+    const dataURL = canvas.toDataURL('image/png');
+    const img = document.createElement('img');
+    img.src = dataURL;
+    img.classList.add('result-canvas');
+    img.alt = 'Photobooth strip';
+    img.style.maxWidth = '100%';
+    img.style.height = 'auto';
+    img.style.borderRadius = '18px';
+    img.style.boxShadow = '0 16px 40px rgba(0,0,0,0.24)';
+    img.style.display = 'block';
+    img.style.margin = '0 auto';
     
-    canvasHolder.appendChild(canvas);
+    canvasHolder.appendChild(img);
 }
 
 btnDownloadResult.addEventListener('click', () => {
-    const canvas = document.querySelector('#canvas-holder canvas');
-    if (canvas) {
-        downloadCanvas(canvas);
+    const img = document.querySelector('#canvas-holder img');
+    if (img) {
+        const downloadLink = document.createElement('a');
+        downloadLink.href = img.src;
+        downloadLink.download = `photobooth-${Date.now()}.png`;
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
     }
 });
 
